@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:lost_and_found/models/user_model.dart';
+import 'package:lost_and_found/screens/notification_preview.dart';
 import 'package:lost_and_found/services/auth_service.dart';
 import 'package:lost_and_found/utils/app_routes.dart';
 import 'package:lost_and_found/utils/app_theme.dart';
 import 'package:lost_and_found/utils/constants.dart';
+import 'package:lost_and_found/screens/notification_preview.dart';
 
 class DashboardScreen extends StatefulWidget {
   final UserModel? user;
@@ -69,13 +71,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _onSidebarTap(_SidebarItem item) {
     Navigator.pop(context); // close drawer
     setState(() => _activeItem = item);
-    // TODO: navigate to actual feature screens when built
-    // e.g. case _SidebarItem.search: Navigator.pushNamed(context, AppRoutes.search);
+    
+    switch (item) {
+      case _SidebarItem.search:
+        Navigator.pushNamed(context, AppRoutes.searchBrowse, arguments: widget.user);
+        break;
+      case _SidebarItem.report:
+        Navigator.pushNamed(context, AppRoutes.reportItem, arguments: widget.user);
+        break;
+      case _SidebarItem.trackMyReport:
+        Navigator.pushNamed(context, AppRoutes.trackMyReport, arguments: widget.user);
+        break;
+      case _SidebarItem.helpSupport:
+        Navigator.pushNamed(context, AppRoutes.helpSupport, arguments: widget.user);
+        break;
+      default:
+        // Dashboard stays on dashboard
+        break;
+    }
   }
 
   void _onDashboardCardTap(_SidebarItem item) {
     setState(() => _activeItem = item);
-    // TODO: navigate to feature screens
+    
+    switch (item) {
+      case _SidebarItem.search:
+        Navigator.pushNamed(context, AppRoutes.searchBrowse, arguments: widget.user);
+        break;
+      case _SidebarItem.report:
+        Navigator.pushNamed(context, AppRoutes.reportItem, arguments: widget.user);
+        break;
+      case _SidebarItem.trackMyReport:
+        Navigator.pushNamed(context, AppRoutes.trackMyReport, arguments: widget.user);
+        break;
+      default:
+        break;
+    }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -156,29 +187,16 @@ class _DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
               color: Colors.white, size: 26),
           tooltip: 'Profile',
           onPressed: () {
-            // TODO: Navigator.pushNamed(context, AppRoutes.profile, arguments: user);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Profile Management — coming soon!'),
-                behavior: SnackBarBehavior.floating,
-              ),
+            Navigator.pushNamed(
+              context,
+              AppRoutes.profileManagement,
+              arguments: user,
             );
           },
         ),
-        // Notification bell
-        IconButton(
-          icon: const Icon(Icons.notifications_none_rounded,
-              color: Colors.white, size: 26),
-          tooltip: 'Notifications',
-          onPressed: () {
-            // TODO: Navigator.pushNamed(context, AppRoutes.notifications);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Notifications — coming soon!'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
+        // Notification bell with preview
+        const NotificationPreview(
+          notificationCount: 0, // TODO: Replace with actual count from Firebase
         ),
         const SizedBox(width: 4),
       ],

@@ -5,15 +5,31 @@ import 'package:lost_and_found/screens/register_screen.dart';
 import 'package:lost_and_found/screens/dashboard_screen.dart';
 import 'package:lost_and_found/screens/forgot_password_screen.dart';
 import 'package:lost_and_found/screens/reset_password_screen.dart';
+import 'package:lost_and_found/screens/profile_management_screen.dart';
+import 'package:lost_and_found/screens/edit_profile_picture_screen.dart';
+import 'package:lost_and_found/screens/change_password_screen.dart';
+import 'package:lost_and_found/screens/search_browse_screen.dart';
+import 'package:lost_and_found/screens/report_item_screen.dart';
+import 'package:lost_and_found/screens/track_my_report_screen.dart';
+import 'package:lost_and_found/screens/help_support_screen.dart';
+import 'package:lost_and_found/screens/notifications_screen.dart';
 import 'package:lost_and_found/models/user_model.dart';
 
 class AppRoutes {
-  static const String splash         = '/';
-  static const String login          = '/login';
-  static const String register       = '/register';
-  static const String dashboard      = '/dashboard';
-  static const String forgotPassword = '/forgot-password';
-  static const String resetPassword  = '/reset-password';
+  static const String splash              = '/';
+  static const String login               = '/login';
+  static const String register            = '/register';
+  static const String dashboard           = '/dashboard';
+  static const String forgotPassword      = '/forgot-password';
+  static const String resetPassword       = '/reset-password';
+  static const String profileManagement   = '/profile-management';
+  static const String editProfilePicture  = '/edit-profile-picture';
+  static const String changePassword      = '/change-password';
+  static const String searchBrowse        = '/search-browse';
+  static const String reportItem          = '/report-item';
+  static const String trackMyReport       = '/track-my-report';
+  static const String helpSupport         = '/help-support';
+  static const String notifications       = '/notifications';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -35,6 +51,36 @@ class AppRoutes {
 
       case resetPassword:
         return _fade(const ResetPasswordScreen());
+
+      case profileManagement:
+        final user = settings.arguments as UserModel?;
+        return _fade(ProfileManagementScreen(user: user));
+
+      case editProfilePicture:
+        return _fade(const EditProfilePictureScreen());
+
+      case changePassword:
+        return _fade(const ChangePasswordScreen());
+
+      case searchBrowse:
+        final user = settings.arguments as UserModel?;
+        return _fade(SearchBrowseScreen(user: user));
+
+      case reportItem:
+        final user = settings.arguments as UserModel?;
+        return _fade(ReportItemScreen(user: user));
+
+      case trackMyReport:
+        final user = settings.arguments as UserModel?;
+        return _fade(TrackMyReportScreen(user: user));
+
+      case helpSupport:
+        final user = settings.arguments as UserModel?;
+        return _fade(HelpSupportScreen(user: user));
+
+      case notifications:
+        final user = settings.arguments as UserModel?;
+        return _fade(NotificationsScreen(user: user));
 
       default:
         return _fade(Scaffold(
