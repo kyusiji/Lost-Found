@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -25,8 +24,34 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final arg = ModalRoute.of(context)?.settings.arguments;
-    if (arg is UserModel) _user = arg;
+    // Load user only once
+    if (_user == null) {
+      _loadUserData();
+    }
+  }
+
+  void _loadUserData() {
+    try {
+      // First try to get from route arguments
+      final arg = ModalRoute.of(context)?.settings.arguments;
+      if (arg is UserModel) {
+        _user = arg;
+        print('✅ User loaded from arguments: ${_user?.fullName}');
+      } else {
+        // Fall back to AuthService
+        final authUser = AuthService().currentUser;
+        if (authUser != null) {
+          _user = authUser;
+          print('✅ User loaded from AuthService: ${_user?.fullName}');
+        } else {
+          print('⚠️ No user data available');
+          _user = null;
+        }
+      }
+      setState(() {});
+    } catch (e) {
+      print('❌ Error loading user data: $e');
+    }
   }
 
   Future<void> _handleImageSelection(ImageSource source) async {
@@ -41,42 +66,66 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
         setState(() => _isLoading = true);
 
         final uid = AuthService().currentFirebaseUser?.uid;
-        if (uid == null) throw Exception('User not logged in');
+        if (uid == null) {
+          throw Exception('User not logged in');
+        }
 
-        // 1. Upload to Storage
-        final bytes = await File(pickedFile.path).readAsBytes();
-        final base64String = base64Encode(bytes);
+        print('📸 Starting upload to Storage...');
+        print('📁 Folder: profile_pictures/$uid');
 
-        // 2. Update Firestore User Document
-        await FirebaseFirestore.instance.collection('users').doc(uid).update({
-          'photoBase64': base64String,
-        });
+        // 1. Upload to Firebase Storage
+        final photoUrl = await StorageService().uploadImage(
+          File(pickedFile.path),
+          'profile_pictures/$uid',
+        );
 
-        if (mounted) {
-          setState(() {
-            _user = UserModel(
+        print('✅ Upload successful. URL: $photoUrl');
+
+        if (photoUrl != null && photoUrl.isNotEmpty) {
+          print('💾 Saving URL to Firestore...');
+          
+          // 2. Update Firestore User Document with photo URL
+          await FirebaseFirestore.instance.collection('users').doc(uid).update({
+            'photoUrl': photoUrl,
+          });
+
+          print('✅ Firestore updated successfully');
+
+          if (mounted) {
+            final updatedUser = UserModel(
               uid: _user!.uid,
               surname: _user!.surname,
               firstName: _user!.firstName,
               studentNumber: _user!.studentNumber,
               ncstEmail: _user!.ncstEmail,
-              photoBase64: base64String, // Pass the new image string here
+              photoUrl: photoUrl,
             );
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Profile picture updated successfully!')),
-          );
-        }
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Profile picture updated successfully!')),
-          );
+            setState(() {
+              _user = updatedUser;
+            });
+
+            // Update AuthService cache so photo persists when navigating
+            AuthService().updateCachedUser(updatedUser);
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Profile picture updated successfully!')),
+            );
+          }
+        } else {
+          throw Exception('Image upload returned empty URL');
         }
       }
+    } on FirebaseException catch (e) {
+      print('❌ Firebase Error: ${e.code} - ${e.message}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Firebase error: ${e.message}')),
+        );
+      }
     } catch (e) {
+      print('❌ Error updating photo: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error updating photo: $e')),
@@ -94,34 +143,96 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
   Future<void> _pickFromGallery() async =>
       _handleImageSelection(ImageSource.gallery);
 
+  /// Build profile avatar with proper image loading and error handling
+  Widget _buildProfileAvatar(UserModel? user) {
+    if (user == null) {
+      return CircleAvatar(
+        radius: 70,
+        backgroundColor: AppTheme.primaryBlue.withOpacity(0.15),
+        child: const Text(
+          'LF',
+          style: TextStyle(
+            fontSize: 42,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primaryBlue,
+          ),
+        ),
+      );
+    }
+
+    final hasPhoto = user.photoUrl.isNotEmpty;
+
+    if (!hasPhoto) {
+      return CircleAvatar(
+        radius: 70,
+        backgroundColor: AppTheme.primaryBlue.withOpacity(0.15),
+        child: Text(
+          user.initials,
+          style: const TextStyle(
+            fontSize: 42,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primaryBlue,
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: 70,
+      backgroundColor: AppTheme.primaryBlue.withOpacity(0.15),
+      backgroundImage: NetworkImage(user.photoUrl),
+      onBackgroundImageError: (exception, stackTrace) {
+        print('❌ Error loading image: $exception');
+      },
+    );
+  }
+
   Future<void> _removePhoto() async {
-    // Note: Assuming you save the photoUrl in the UserModel.
-    // You will need to fetch it or pass it.
+    if (_user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User data not available')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final uid = AuthService().currentFirebaseUser?.uid;
-      if (uid != null) {
-        await FirebaseFirestore.instance.collection('users').doc(uid).update({
-          'photoBase64': FieldValue.delete(),
-        });
+      if (uid == null) {
+        throw Exception('User not logged in');
+      }
 
-        if (mounted) {
-          setState(() {
-            _user = UserModel(
-              uid: _user!.uid,
-              surname: _user!.surname,
-              firstName: _user!.firstName,
-              studentNumber: _user!.studentNumber,
-              ncstEmail: _user!.ncstEmail,
-              photoBase64: '', // Clear the photo string
-            );
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Photo removed.')),
+      // Delete from Firebase Storage if URL exists
+      if (_user!.photoUrl.isNotEmpty) {
+        print('🗑️ Deleting from Storage: ${_user!.photoUrl}');
+        await StorageService().deleteImageFromUrl(_user!.photoUrl);
+        print('✅ Deleted from Storage');
+      }
+
+      // Delete from Firestore
+      print('💾 Updating Firestore...');
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'photoUrl': FieldValue.delete(),
+      });
+      print('✅ Updated Firestore');
+
+      if (mounted) {
+        setState(() {
+          _user = UserModel(
+            uid: _user!.uid,
+            surname: _user!.surname,
+            firstName: _user!.firstName,
+            studentNumber: _user!.studentNumber,
+            ncstEmail: _user!.ncstEmail,
+            photoUrl: '',
           );
-        }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo removed.')),
+        );
       }
     } catch (e) {
+      print('❌ Error removing photo: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error removing photo: $e')),
@@ -154,54 +265,40 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
         ),
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
+      body: _user == null
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: AppTheme.primaryBlue,
+              ),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
 
-            // Current avatar
-            CircleAvatar(
-              radius: 70,
-              backgroundColor: AppTheme.primaryBlue.withOpacity(0.15),
-              // 1. Add the background image here!
-              backgroundImage:
-                  (_user?.photoBase64 != null && _user!.photoBase64!.isNotEmpty)
-                      ? MemoryImage(base64Decode(_user!.photoBase64!))
-                      : null,
+                  // Current avatar
+                  _buildProfileAvatar(_user),
+                  const SizedBox(height: 40),
 
-              // 2. Only show the text initials IF there is no image
-              child: (_user?.photoBase64 == null || _user!.photoBase64!.isEmpty)
-                  ? Text(
-                      _user?.initials ?? 'LF',
-                      style: const TextStyle(
-                        fontSize: 42,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryBlue,
-                      ),
-                    )
-                  : null, // Hide the text if the image is showing
+                  // Options
+                  PrimaryButton(
+                    label: 'Take a Photo',
+                    onPressed: _isLoading ? null : _pickFromCamera,
+                  ),
+                  const SizedBox(height: 12),
+                  PrimaryButton(
+                    label: 'Choose from Gallery',
+                    onPressed: _isLoading ? null : _pickFromGallery,
+                  ),
+                  const SizedBox(height: 12),
+                  PrimaryButton(
+                    label: 'Remove Photo',
+                    onPressed: _isLoading ? null : _removePhoto,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 40),
-
-            // Options
-            PrimaryButton(
-              label: 'Take a Photo',
-              onPressed: _pickFromCamera,
-            ),
-            const SizedBox(height: 12),
-            PrimaryButton(
-              label: 'Choose from Gallery',
-              onPressed: _pickFromGallery,
-            ),
-            const SizedBox(height: 12),
-            PrimaryButton(
-              label: 'Remove Photo',
-              onPressed: _removePhoto,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

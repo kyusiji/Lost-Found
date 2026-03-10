@@ -1,7 +1,9 @@
-import 'dart:convert'; //  Added for Base64 image decoding
 import 'package:cloud_firestore/cloud_firestore.dart'; //  Added for Firestore
 import 'package:flutter/material.dart';
 import 'package:lost_and_found/models/user_model.dart';
+import 'package:lost_and_found/services/auth_service.dart';
+import 'package:lost_and_found/services/item_service.dart';
+import 'package:lost_and_found/services/notification_service.dart';
 import 'package:lost_and_found/utils/app_theme.dart';
 import 'package:intl/intl.dart';
 
@@ -75,28 +77,61 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryBlue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.search_rounded,
-                        color: AppTheme.primaryBlue,
-                        size: 24,
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryBlue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.search_rounded,
+                              color: AppTheme.primaryBlue,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Search/Browse Items',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textDark,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Search/Browse Items',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textDark,
+                    // Active filters badge
+                    if (_startDate != null ||
+                        _endDate != null ||
+                        _selectedCategory != 'All Category' ||
+                        _selectedItemType != 'All Types' ||
+                        _searchCtrl.text.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.errorRed.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: AppTheme.errorRed.withOpacity(0.3)),
+                        ),
+                        child: Text(
+                          'Filters Active',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.errorRed,
+                          ),
+                        ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -215,7 +250,18 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
                               lastDate: DateTime.now(),
                             );
                             if (picked != null) {
-                              setState(() => _startDate = picked);
+                              // Validate: start date should not be after end date
+                              if (_endDate != null && picked.isAfter(_endDate!)) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Start date cannot be after end date'),
+                                    backgroundColor: AppTheme.errorRed,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              } else {
+                                setState(() => _startDate = picked);
+                              }
                             }
                           },
                           style: TextButton.styleFrom(
@@ -255,7 +301,18 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
                               lastDate: DateTime.now(),
                             );
                             if (picked != null) {
-                              setState(() => _endDate = picked);
+                              // Validate: end date should not be before start date
+                              if (_startDate != null && picked.isBefore(_startDate!)) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('End date cannot be before start date'),
+                                    backgroundColor: AppTheme.errorRed,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              } else {
+                                setState(() => _endDate = picked);
+                              }
                             }
                           },
                           style: TextButton.styleFrom(
@@ -276,6 +333,57 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
                               color: _endDate != null
                                   ? AppTheme.textDark
                                   : AppTheme.textGrey.withOpacity(0.6),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Clear Filters button
+                      SizedBox(
+                        height: 42,
+                        child: TextButton(
+                          onPressed: (_startDate != null ||
+                                  _endDate != null ||
+                                  _selectedCategory != 'All Category' ||
+                                  _selectedItemType != 'All Types' ||
+                                  _searchCtrl.text.isNotEmpty)
+                              ? () {
+                                  setState(() {
+                                    _startDate = null;
+                                    _endDate = null;
+                                    _selectedCategory = 'All Category';
+                                    _selectedItemType = 'All Types';
+                                    _searchCtrl.clear();
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('✓ Filters cleared'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                }
+                              : null,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            side: BorderSide(
+                                color: AppTheme.textGrey.withOpacity(0.3)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          child: Text(
+                            'Clear',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: (_startDate != null ||
+                                      _endDate != null ||
+                                      _selectedCategory != 'All Category' ||
+                                      _selectedItemType != 'All Types' ||
+                                      _searchCtrl.text.isNotEmpty)
+                                  ? AppTheme.errorRed
+                                  : AppTheme.textGrey.withOpacity(0.5),
                             ),
                           ),
                         ),
@@ -313,16 +421,17 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
                 List<_ItemCard> allItems = docs.map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return _ItemCard(
+                    id: doc.id,
                     title: data['title'] ?? 'No Title',
                     category: data['category'] ?? 'Uncategorized',
                     itemType: data['type'] == 'found' ? 'Found' : 'Lost',
                     description: data['description'] ?? '',
                     location: data['location'] ?? 'Unknown',
                     dateFound: data['date'] ?? 'Unknown date',
-                    reportedBy:
-                        'Student', // We only save UID, so using placeholder
+                    reportedBy: data['reporterName'] ?? 'Student',
+                    reporterUid: data['reporterUid'] ?? '',
                     status: data['type'] == 'found' ? 'Found' : 'Lost',
-                    imageUrl: data['imageBase64'],
+                    imageUrl: data['imageUrl'], // Storage URL, not base64
                   );
                 }).toList();
 
@@ -349,17 +458,37 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
                     return false;
                   }
 
-                  // Date filter (Wrap in try/catch in case user typed weird formats)
+                  // Date filter - Only include items within the selected date range
                   if (_startDate != null || _endDate != null) {
                     try {
-                      final itemDate =
-                          DateFormat('MM/dd/yyyy').parse(item.dateFound);
-                      if (_startDate != null && itemDate.isBefore(_startDate!))
-                        return false;
-                      if (_endDate != null && itemDate.isAfter(_endDate!))
-                        return false;
+                      // Parse item date with robust error handling
+                      final itemDate = DateFormat('MM/dd/yyyy').parse(item.dateFound);
+                      
+                      // Include item only if it falls within BOTH start and end dates
+                      // Start date check: item must be on or after start date (if set)
+                      if (_startDate != null) {
+                        if (itemDate.isBefore(_startDate!)) {
+                          print('❌ Item ${ item.title} (${item.dateFound}) is BEFORE start date ${DateFormat('MM/dd/yyyy').format(_startDate!)}');
+                          return false; // Exclude: item is before start date
+                        }
+                      }
+                      
+                      // End date check: item must be on or before end date (if set)
+                      // Add 1 day to end date to include the entire end day (up to 23:59:59)
+                      if (_endDate != null) {
+                        final endOfDay = _endDate!.add(const Duration(days: 1));
+                        if (itemDate.isAfter(endOfDay)) {
+                          print('❌ Item ${item.title} (${item.dateFound}) is AFTER end date ${DateFormat('MM/dd/yyyy').format(_endDate!)}');
+                          return false; // Exclude: item is after end date
+                        }
+                      }
+                      
+                      // Item passed all date range checks - include it
+                      print('✅ Item ${item.title} (${item.dateFound}) is WITHIN date range');
                     } catch (e) {
-                      // If date fails to parse perfectly, we skip the date filter check
+                      // If date parsing fails, log and skip this item
+                      print('⚠️ Date parse error for item "${item.title}" with date "${item.dateFound}": $e');
+                      return false; // Exclude items with unparseable dates
                     }
                   }
 
@@ -425,9 +554,34 @@ class _ItemResultCard extends StatelessWidget {
                   ),
                   clipBehavior: Clip.hardEdge,
                   child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
-                      ? Image.memory(
-                          base64Decode(item.imageUrl!),
+                      ? Image.network(
+                          item.imageUrl!,
                           fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            print('❌ Error loading image: $error');
+                            return const Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                color: Colors.white,
+                                size: 30,
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const Center(
+                              child: SizedBox(
+                                width: 30,
+                                height: 30,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         )
                       : const Center(
                           child: Icon(
@@ -532,11 +686,7 @@ class _ItemResultCard extends StatelessWidget {
               ),
             ),
             child: TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Claim Item — coming soon!')),
-                );
-              },
+              onPressed: () => _showClaimDialog(context, item),
               child: Text(
                 isFound ? 'Claim Item' : 'Found Item',
                 style: const TextStyle(
@@ -550,6 +700,67 @@ class _ItemResultCard extends StatelessWidget {
         ],
       ),
     );
+  }
+  
+  void _showClaimDialog(BuildContext context, _ItemCard item) async {
+    // Ensure user is logged in
+    final firebaseUser = AuthService().currentFirebaseUser;
+    final userModel = AuthService().currentUser;
+    if (firebaseUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You must be logged in to claim an item.'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Claim Item'),
+        content: Text('Are you sure you want to claim "${item.title}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
+            child: const Text('Yes, Claim'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // Show loading indicator while claiming
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await ItemService().claimItem(item.id, firebaseUser.uid, userModel?.fullName ?? '');
+      if (Navigator.canPop(context)) Navigator.pop(context); // remove loading
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ "${item.title}" claimed successfully'),
+          backgroundColor: AppTheme.successGreen,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (Navigator.canPop(context)) Navigator.pop(context); // remove loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to claim item: $e'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+    }
   }
 }
 
@@ -633,6 +844,7 @@ class _EmptySearchState extends StatelessWidget {
 // ════════════════════════════════════════════════════════════════════════════
 
 class _ItemCard {
+  final String id;
   final String title;
   final String category;
   final String itemType;
@@ -640,10 +852,12 @@ class _ItemCard {
   final String location;
   final String dateFound;
   final String reportedBy;
+  final String reporterUid;
   final String status;
   final String? imageUrl;
 
   _ItemCard({
+    required this.id,
     required this.title,
     required this.category,
     required this.itemType,
@@ -651,6 +865,7 @@ class _ItemCard {
     required this.location,
     required this.dateFound,
     required this.reportedBy,
+    required this.reporterUid,
     required this.status,
     this.imageUrl,
   });

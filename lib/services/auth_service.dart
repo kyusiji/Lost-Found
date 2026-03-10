@@ -85,7 +85,7 @@ class AuthService {
         firstName: data['firstName'] ?? '',
         studentNumber: data['studentNumber'] ?? '',
         ncstEmail: data['ncstEmail'] ?? '',
-        photoBase64: data['photoBase64'] ?? '',
+        photoUrl: data['photoUrl'] ?? '',
       );
 
       // Ensure user mapping exists (for existing users who login with email)
@@ -190,7 +190,7 @@ class AuthService {
         firstName: firstName,
         studentNumber: studentNumber,
         ncstEmail: ncstEmail,
-        photoBase64: '', // Initialize with empty string
+        photoUrl: '', // Initialize with empty string
       );
       print('✅ Step 4 Success: User cached and registration complete!');
       return _currentUser!;
@@ -310,11 +310,45 @@ class AuthService {
         return 'An error occurred. Please try again.';
     }
   }
-}
 
-// ══════════════════════════════════════════════════════════════════════════
-// AUTH EXCEPTION
-// ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════
+  // UPDATE CACHED USER
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// Update the cached current user with new data
+  /// Use this after profile photo or other user data changes
+  void updateCachedUser(UserModel updatedUser) {
+    _currentUser = updatedUser;
+    print('✅ Cached user updated: ${updatedUser.fullName}');
+  }
+
+  /// Refresh current user from Firestore
+  /// Fetches latest data and updates _currentUser
+  Future<UserModel?> refreshCurrentUser() async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return null;
+
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+      if (!userDoc.exists) return null;
+
+      final data = userDoc.data()!;
+      _currentUser = UserModel(
+        uid: uid,
+        surname: data['surname'] ?? '',
+        firstName: data['firstName'] ?? '',
+        studentNumber: data['studentNumber'] ?? '',
+        ncstEmail: data['ncstEmail'] ?? '',
+        photoUrl: data['photoUrl'] ?? '',
+      );
+      print('✅ User refreshed from Firestore: ${_currentUser?.fullName}');
+      return _currentUser;
+    } catch (e) {
+      print('❌ Error refreshing user: $e');
+      return null;
+    }
+  }
+}
 
 class AuthException implements Exception {
   final String message;

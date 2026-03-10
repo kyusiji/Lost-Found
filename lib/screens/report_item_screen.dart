@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lost_and_found/models/item_model.dart';
+import 'package:lost_and_found/services/item_service.dart';
 import 'package:lost_and_found/services/storage_service.dart';
 import 'package:lost_and_found/services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -66,7 +66,15 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
   // Replace your existing _submit method with this:
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fix the errors in the form'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+      return;
+    }
 
     final currentUser = AuthService().currentFirebaseUser;
     if (currentUser == null) {
@@ -80,51 +88,86 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     setState(() => _isLoading = true);
 
     try {
-      String? base64ImageString;
+      String? imageUrl;
 
-      // 1. Upload Image to Storage (if selected)
+      // 1. Upload Image to Firebase Storage (if selected)
       if (_selectedImage != null) {
-        final bytes = await _selectedImage!.readAsBytes();
-        // Convert to base64 string
-        base64ImageString = base64Encode(bytes);
+        print('🖼️ Uploading item image to Storage...');
+        try {
+          imageUrl = await StorageService().uploadImage(
+            _selectedImage!,
+            'item_images/${currentUser.uid}',
+          );
+          print('✅ Image uploaded. URL: $imageUrl');
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload image: $e'),
+                backgroundColor: AppTheme.errorRed,
+              ),
+            );
+          }
+          return;
+        }
       }
 
-      // 2. Save Item details to Firestore
-      await FirebaseFirestore.instance.collection('items').add({
-        'type': _isFoundTab ? 'found' : 'lost',
-        'title': _itemTitleCtrl.text.trim(),
-        'category': _selectedCategory,
-        'itemType': _selectedItemType,
-        'description': _descriptionCtrl.text.trim(),
-        'location': _locationCtrl.text.trim(),
-        'date': _dateCtrl.text.trim(),
-        'handoverStatus': _isFoundTab ? _selectedHandoverStatus : null,
-        'imageUrl': base64ImageString,
-        'reporterUid': currentUser.uid,
-        'status': 'active', // default status
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // 2. Create ItemModel
+      final item = ItemModel(
+        id: '', // Firestore will generate ID
+        title: _itemTitleCtrl.text.trim(),
+        description: _descriptionCtrl.text.trim(),
+        category: _selectedCategory,
+        type: _isFoundTab ? 'found' : 'lost',
+        location: _locationCtrl.text.trim(),
+        date: _dateCtrl.text.trim(),
+        imageUrl: imageUrl ?? '',
+        reporterUid: currentUser.uid,
+        reporterName: AuthService().currentUser?.fullName ?? 'Unknown',
+        status: 'active',
+        handoverStatus: _isFoundTab ? _selectedHandoverStatus : null,
+        itemType: _selectedItemType,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // 3. Save Item details using ItemService
+      print('💾 Saving item to Firestore...');
+      await ItemService().createItem(item);
+      print('✅ Item saved successfully');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               _isFoundTab
-                  ? 'Found item reported successfully!'
-                  : 'Lost item reported successfully!',
+                  ? '✅ Found item reported successfully!'
+                  : '✅ Lost item reported successfully!',
             ),
             backgroundColor: AppTheme.successGreen,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
         );
-        Navigator.pop(context);
+        
+        // Clear form
+        _itemTitleCtrl.clear();
+        _descriptionCtrl.clear();
+        _locationCtrl.clear();
+        _dateCtrl.clear();
+        setState(() => _selectedImage = null);
+        
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) Navigator.pop(context);
+        });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error submitting report: $e'),
+            content: Text('❌ Error submitting report: $e'),
             backgroundColor: AppTheme.errorRed,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -594,7 +637,19 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
               borderSide: const BorderSide(color: AppTheme.primaryBlue),
             ),
           ),
-          validator: (v) => Validators.validateRequired(v, fieldName: label),
+          validator: (v) {
+            // Use specific validators based on field label
+            if (label == 'Item Title') {
+              return Validators.validateItemTitle(v);
+            } else if (label == 'Description') {
+              return Validators.validateItemDescription(v);
+            } else if (label.contains('at:')) {
+              return Validators.validateItemLocation(v);
+            } else if (label == 'Date') {
+              return Validators.validateItemDate(v);
+            }
+            return Validators.validateRequired(v, fieldName: label);
+          },
         ),
       ],
     );

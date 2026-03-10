@@ -2,31 +2,149 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Allow authenticated users to read/write their own user document
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+    // ════════════════════════════════════════════════════════════════
+    // HELPER FUNCTIONS
+    // ════════════════════════════════════════════════════════════════
+    
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // Allow public read access to user mappings for login/password reset
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+    
+    // ════════════════════════════════════════════════════════════════
+    // USERS COLLECTION
+    // ════════════════════════════════════════════════════════════════
+    
+    match /users/{uid} {
+      // Users can read their own profile and any other user's public profile
+      allow read: if isAuthenticated();
+      
+      // Users can only update their own profile
+      allow update: if isOwner(uid);
+      
+      // Only allow creation during registration (handled by backend)
+      allow create: if false;
+      
+      // Users can only delete their own profile (handled by backend)
+      allow delete: if isOwner(uid);
+    }
+    
+    // ════════════════════════════════════════════════════════════════
+    // ITEMS COLLECTION (Lost/Found Reports)
+    // ════════════════════════════════════════════════════════════════
+    
+    match /items/{itemId} {
+      // Anyone authenticated can read items
+      allow read: if isAuthenticated();
+      
+      // Only the reporter can create
+      allow create: if isAuthenticated() 
+        && request.resource.data.reporterUid == request.auth.uid;
+      
+      // Only the reporter can update their own item
+      // Allow status updates (claimed, handed_over) but only certain fields
+      allow update: if isAuthenticated()
+        && (
+          // Reporter can update their own item
+          (resource.data.reporterUid == request.auth.uid)
+          ||
+          // Anyone can claim an unclaimed item (sets claimedBy field)
+          (resource.data.status == 'active' 
+           && request.resource.data.status == 'claimed'
+           && request.resource.data.claimedBy == request.auth.uid)
+        );
+      
+      // Only the reporter can delete their own item
+      allow delete: if isOwner(resource.data.reporterUid);
+    }
+    
+    // ════════════════════════════════════════════════════════════════
+    // NOTIFICATIONS COLLECTION
+    // ════════════════════════════════════════════════════════════════
+    
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+      
+      // Only backend can create (via Cloud Functions or server SDK)
+      allow create: if false;
+      
+      // Users can update their own notifications (mark as read)
+      allow update: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+      
+      // Users can delete their own notifications
+      allow delete: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+    }
+    
+    // ════════════════════════════════════════════════════════════════
+    // MESSAGES COLLECTION
+    // ════════════════════════════════════════════════════════════════
+    
+    match /messages/{messageId} {
+      // Users can read messages where they are sender or receiver
+      allow read: if isAuthenticated()
+        && (request.auth.uid == resource.data.senderUid 
+          || request.auth.uid == resource.data.receiverUid);
+      
+      // Users can create messages
+      allow create: if isAuthenticated()
+        && request.resource.data.senderUid == request.auth.uid;
+      
+      // Users can mark their received messages as read
+      allow update: if isAuthenticated()
+        && (request.auth.uid == resource.data.receiverUid)
+        && request.resource.data.keys().hasAll(['isRead']);
+      
+      // Users can delete the message if they are sender or receiver
+      allow delete: if isAuthenticated()
+        && (request.auth.uid == resource.data.senderUid 
+          || request.auth.uid == resource.data.receiverUid);
+    }
+    
+    // ════════════════════════════════════════════════════════════════
+    // CONVERSATIONS COLLECTION
+    // ════════════════════════════════════════════════════════════════
+    
+    match /conversations/{conversationId} {
+      // Users can read conversations they are part of
+      allow read: if isAuthenticated()
+        && (request.auth.uid == resource.data.user1Uid 
+          || request.auth.uid == resource.data.user2Uid);
+      
+      // Only backend can create conversations
+      allow create: if false;
+      
+      // Users can update conversations they are part of
+      allow update: if isAuthenticated()
+        && (request.auth.uid == resource.data.user1Uid 
+          || request.auth.uid == resource.data.user2Uid);
+      
+      // Cannot delete conversations
+      allow delete: if false;
+    }
+    
+    // ════════════════════════════════════════════════════════════════
+    // USER MAPPINGS (Student Number -> Email)
+    // ════════════════════════════════════════════════════════════════
+    
     match /userMappings/{studentNumber} {
+      // Anyone unauthenticated can read to lookup email during login
       allow read: if true;
-      allow write: if request.auth != null; // Allow authenticated users to create mappings
+      
+      // Only backend can create/update/delete
+      allow create, update, delete: if false;
     }
     
-    // Allow anyone to read items (for search/browse)
-    match /items/{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
+    // ════════════════════════════════════════════════════════════════
+    // DENY ALL OTHER ACCESS
+    // ════════════════════════════════════════════════════════════════
     
-    // Allow users to manage their own claims
-    match /claims/{document=**} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Deny all other access
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
+

@@ -4,7 +4,7 @@ class UserModel {
   final String firstName;
   final String studentNumber;
   final String ncstEmail;
-  final String photoBase64; // New field for storing base64 image string
+  final String photoUrl; // URL to profile image on Firebase Storage
 
   const UserModel({
     required this.uid,
@@ -12,7 +12,7 @@ class UserModel {
     required this.firstName,
     required this.studentNumber,
     required this.ncstEmail,
-    required this.photoBase64,
+    required this.photoUrl,
   });
 
   String get fullName => '$firstName $surname';
@@ -24,7 +24,7 @@ class UserModel {
         firstName: m['firstName'] as String? ?? '',
         studentNumber: m['studentNumber'] as String? ?? '',
         ncstEmail: m['ncstEmail'] as String? ?? '',
-        photoBase64: m['photoBase64'] as String? ?? '',
+        photoUrl: m['photoUrl'] as String? ?? '',
       );
 
   Map<String, dynamic> toMap() => {
@@ -33,7 +33,7 @@ class UserModel {
         'firstName': firstName,
         'studentNumber': studentNumber,
         'ncstEmail': ncstEmail,
-        'photoBase64': photoBase64,
+        'photoUrl': photoUrl,
       };
 
   UserModel copyWith({
@@ -42,7 +42,7 @@ class UserModel {
     String? firstName,
     String? studentNumber,
     String? ncstEmail,
-    String? photoBase64,
+    String? photoUrl,
   }) =>
       UserModel(
         uid: uid ?? this.uid,
@@ -50,7 +50,7 @@ class UserModel {
         firstName: firstName ?? this.firstName,
         studentNumber: studentNumber ?? this.studentNumber,
         ncstEmail: ncstEmail ?? this.ncstEmail,
-        photoBase64: photoBase64 ?? this.photoBase64,
+        photoUrl: photoUrl ?? this.photoUrl,
       );
 
   @override

@@ -1,0 +1,29 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // ════════════════════════════════════════════════════════════════════
+    // PROFILE PICTURES - Only signed-in users can upload/delete their own
+    // ════════════════════════════════════════════════════════════════════
+    match /profile_pictures/{userId}/{fileName} {
+      // Only the owner can upload or delete their profile picture
+      allow read: if true; // Anyone can see profile pictures
+      allow write, delete: if request.auth.uid == userId;
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // ITEM IMAGES - Only signed-in users can upload/delete their own items
+    // ════════════════════════════════════════════════════════════════════
+    match /item_images/{userId}/{fileName} {
+      // Only the owner can upload or delete their item images
+      allow read: if true; // Anyone can view item images
+      allow write, delete: if request.auth.uid == userId;
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // DENY ALL OTHER ACCESS
+    // ════════════════════════════════════════════════════════════════════
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

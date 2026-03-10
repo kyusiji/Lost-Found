@@ -12,19 +12,31 @@ class StorageService {
 
   Future<String?> uploadImage(File file, String folder) async {
     try {
+      print('🔄 StorageService: Starting upload from $folder');
+      
       // Generate a unique file name
       final fileName = '${_uuid.v4()}.jpg';
       final ref = _storage.ref().child('$folder/$fileName');
 
+      print('📤 Uploading file: $fileName');
+      
       // Upload the file
       final uploadTask = await ref.putFile(file);
 
+      print('✅ File uploaded. Getting download URL...');
+      
       // Get the download URL
       final downloadUrl = await uploadTask.ref.getDownloadURL();
+      
+      print('🔗 Download URL: $downloadUrl');
+      
       return downloadUrl;
+    } on FirebaseException catch (e) {
+      print('❌ Firebase Error uploading image: ${e.code} - ${e.message}');
+      rethrow;
     } catch (e) {
-      print('Error uploading image: $e');
-      throw Exception('Failed to upload image');
+      print('❌ Error uploading image: $e');
+      rethrow;
     }
   }
 
