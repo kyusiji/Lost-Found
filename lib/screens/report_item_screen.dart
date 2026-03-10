@@ -1,3 +1,8 @@
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lost_and_found/services/storage_service.dart';
+import 'package:lost_and_found/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:lost_and_found/models/user_model.dart';
 import 'package:lost_and_found/utils/app_theme.dart';
@@ -15,6 +20,8 @@ class ReportItemScreen extends StatefulWidget {
 class _ReportItemScreenState extends State<ReportItemScreen> {
   bool _isFoundTab = true; // true = Found Items, false = Lost Items
 
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
   final _formKey = GlobalKey<FormState>();
   final _itemTitleCtrl = TextEditingController();
   final _descriptionCtrl = TextEditingController();
@@ -23,7 +30,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
 
   String _selectedCategory = 'All Category';
   String _selectedItemType = 'All Types';
-  String _selectedHandoverStatus = 'Status';
+  String _selectedHandoverStatus = 'Office Of Student Affairs';
 
   bool _isLoading = false;
 
@@ -37,32 +44,94 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   }
 
   Future<void> _uploadImage() async {
-    // TODO: implement image_picker
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Image upload — coming soon!')),
-    );
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70, // Compress image slightly to save space
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to pick image: $e')),
+      );
+    }
   }
 
+  // Replace your existing _submit method with this:
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final currentUser = AuthService().currentFirebaseUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('You must be logged in to report an item.')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    // TODO: Upload images to Firebase Storage, create Firestore doc
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      String? imageUrl;
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isFoundTab
-                ? 'Found item reported successfully!'
-                : 'Lost item reported successfully!',
+      // 1. Upload Image to Storage (if selected)
+      if (_selectedImage != null) {
+        imageUrl = await StorageService().uploadImage(
+            _selectedImage!, _isFoundTab ? 'found_items' : 'lost_items');
+      }
+      if (_selectedImage != null) {
+        Image.file(_selectedImage!);
+      }
+
+      // 2. Save Item details to Firestore
+      await FirebaseFirestore.instance.collection('items').add({
+        'type': _isFoundTab ? 'found' : 'lost',
+        'title': _itemTitleCtrl.text.trim(),
+        'category': _selectedCategory,
+        'itemType': _selectedItemType,
+        'description': _descriptionCtrl.text.trim(),
+        'location': _locationCtrl.text.trim(),
+        'date': _dateCtrl.text.trim(),
+        'handoverStatus': _isFoundTab ? _selectedHandoverStatus : null,
+        'imageUrl': imageUrl,
+        'reporterUid': currentUser.uid,
+        'status': 'active', // default status
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isFoundTab
+                  ? 'Found item reported successfully!'
+                  : 'Lost item reported successfully!',
+            ),
+            backgroundColor: AppTheme.successGreen,
+            behavior: SnackBarBehavior.floating,
           ),
-          backgroundColor: AppTheme.successGreen,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      Navigator.pop(context);
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting report: $e'),
+            backgroundColor: AppTheme.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -244,8 +313,8 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                                         : 'Upload clear images of lost item. You can upload multiple images.',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: AppTheme.primaryBlue
-                                          .withOpacity(0.9),
+                                      color:
+                                          AppTheme.primaryBlue.withOpacity(0.9),
                                     ),
                                   ),
                                 ),
@@ -262,8 +331,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                                 color: AppTheme.bgLight,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: AppTheme.borderColor
-                                      .withOpacity(0.4),
+                                  color: AppTheme.borderColor.withOpacity(0.4),
                                   style: BorderStyle.solid,
                                   width: 1.5,
                                 ),
@@ -273,16 +341,16 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(Icons.cloud_upload_outlined,
-                                        color: AppTheme.textGrey
-                                            .withOpacity(0.6),
+                                        color:
+                                            AppTheme.textGrey.withOpacity(0.6),
                                         size: 36),
                                     const SizedBox(height: 6),
                                     Text(
                                       '[Upload]',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: AppTheme.textGrey
-                                            .withOpacity(0.7),
+                                        color:
+                                            AppTheme.textGrey.withOpacity(0.7),
                                       ),
                                     ),
                                   ],
@@ -394,9 +462,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _buildField(
-                                  _isFoundTab
-                                      ? 'Date found:'
-                                      : 'Date lost:',
+                                  _isFoundTab ? 'Date found:' : 'Date lost:',
                                   _dateCtrl,
                                   '[mm/dd/yyyy]',
                                 ),
@@ -411,13 +477,10 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                               'Handover Status:',
                               _selectedHandoverStatus,
                               [
-                                'Status',
-                                'Admin Office',
-                                'Security Office',
-                                'Faculty Room'
+                                'Office Of Student Affairs',
                               ],
-                              (v) => setState(
-                                  () => _selectedHandoverStatus = v!),
+                              (v) =>
+                                  setState(() => _selectedHandoverStatus = v!),
                             ),
                           ],
                         ],

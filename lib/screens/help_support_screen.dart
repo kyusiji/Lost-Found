@@ -39,7 +39,7 @@ class HelpSupportScreen extends StatelessWidget {
               icon: Icons.location_on_outlined,
               title: 'Location Map',
               content:
-                  'Physical Lost & Found office is at Room 1109 , 3175 Emilio Aguinaldo Hwy, Salitran, Dasmariñas, Cavite, Philippines.',
+                  'Physical Lost & Found office is at Room 1109 ,National College of Science And Technology, 3175 Emilio Aguinaldo Hwy, Salitran, Dasmariñas, Cavite, Philippines.',
             ),
             const SizedBox(height: 12),
 

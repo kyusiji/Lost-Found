@@ -1,3 +1,8 @@
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lost_and_found/services/storage_service.dart';
+import 'package:lost_and_found/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:lost_and_found/models/user_model.dart';
 import 'package:lost_and_found/utils/app_theme.dart';
@@ -13,7 +18,8 @@ class EditProfilePictureScreen extends StatefulWidget {
 
 class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
   UserModel? _user;
-  //bool _isLoading = false;
+  bool _isLoading = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void didChangeDependencies() {
@@ -22,29 +28,81 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
     if (arg is UserModel) _user = arg;
   }
 
-  Future<void> _pickFromCamera() async {
-    // TODO: implement image_picker camera
-    // final picker = ImagePicker();
-    // final image = await picker.pickImage(source: ImageSource.camera);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Camera picker — coming soon!')),
-    );
+  Future<void> _handleImageSelection(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 70,
+      );
+
+      if (pickedFile != null) {
+        setState(() => _isLoading = true);
+
+        final uid = AuthService().currentFirebaseUser?.uid;
+        if (uid == null) throw Exception('User not logged in');
+
+        // 1. Upload to Storage
+        final imageUrl = await StorageService()
+            .uploadImage(File(pickedFile.path), 'profile_pictures/$uid');
+
+        // 2. Update Firestore User Document
+        await FirebaseFirestore.instance.collection('users').doc(uid).update({
+          'photoUrl': imageUrl,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Profile picture updated successfully!')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating photo: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
-  Future<void> _pickFromGallery() async {
-    // TODO: implement image_picker gallery
-    // final picker = ImagePicker();
-    // final image = await picker.pickImage(source: ImageSource.gallery);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Gallery picker — coming soon!')),
-    );
-  }
+  Future<void> _pickFromCamera() async =>
+      _handleImageSelection(ImageSource.camera);
+  Future<void> _pickFromGallery() async =>
+      _handleImageSelection(ImageSource.gallery);
 
   Future<void> _removePhoto() async {
-    // TODO: remove from Firebase Storage + update user doc
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Photo removed — coming soon!')),
-    );
+    // Note: Assuming you save the photoUrl in the UserModel.
+    // You will need to fetch it or pass it.
+    setState(() => _isLoading = true);
+    try {
+      final uid = AuthService().currentFirebaseUser?.uid;
+      if (uid != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).update({
+          'photoUrl': FieldValue.delete(),
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Photo removed.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error removing photo: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
