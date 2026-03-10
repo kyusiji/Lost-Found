@@ -196,6 +196,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
           ),
 
           // ── Tab buttons ────────────────────────────────────────────
+          // ── Tab buttons ────────────────────────────────────────────
           Container(
             color: AppTheme.primaryBlue,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -208,6 +209,13 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                     onTap: () => setState(() {
                       _isFoundTab = true;
                       _formKey.currentState?.reset();
+
+                      // Clear all inputs and the image when switching to Found
+                      _itemTitleCtrl.clear();
+                      _descriptionCtrl.clear();
+                      _locationCtrl.clear();
+                      _dateCtrl.clear();
+                      _selectedImage = null;
                     }),
                   ),
                 ),
@@ -219,6 +227,13 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                     onTap: () => setState(() {
                       _isFoundTab = false;
                       _formKey.currentState?.reset();
+
+                      // Clear all inputs and the image when switching to Lost
+                      _itemTitleCtrl.clear();
+                      _descriptionCtrl.clear();
+                      _locationCtrl.clear();
+                      _dateCtrl.clear();
+                      _selectedImage = null;
                     }),
                   ),
                 ),
