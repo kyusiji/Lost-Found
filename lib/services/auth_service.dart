@@ -85,6 +85,7 @@ class AuthService {
         firstName: data['firstName'] ?? '',
         studentNumber: data['studentNumber'] ?? '',
         ncstEmail: data['ncstEmail'] ?? '',
+        photoBase64: data['photoBase64'] ?? '',
       );
 
       // Ensure user mapping exists (for existing users who login with email)
@@ -189,6 +190,7 @@ class AuthService {
         firstName: firstName,
         studentNumber: studentNumber,
         ncstEmail: ncstEmail,
+        photoBase64: '', // Initialize with empty string
       );
       print('✅ Step 4 Success: User cached and registration complete!');
       return _currentUser!;

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -32,7 +33,8 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        imageQuality: 70,
+        imageQuality: 30,
+        maxWidth: 400,
       );
 
       if (pickedFile != null) {
@@ -42,13 +44,30 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
         if (uid == null) throw Exception('User not logged in');
 
         // 1. Upload to Storage
-        final imageUrl = await StorageService()
-            .uploadImage(File(pickedFile.path), 'profile_pictures/$uid');
+        final bytes = await File(pickedFile.path).readAsBytes();
+        final base64String = base64Encode(bytes);
 
         // 2. Update Firestore User Document
         await FirebaseFirestore.instance.collection('users').doc(uid).update({
-          'photoUrl': imageUrl,
+          'photoBase64': base64String,
         });
+
+        if (mounted) {
+          setState(() {
+            _user = UserModel(
+              uid: _user!.uid,
+              surname: _user!.surname,
+              firstName: _user!.firstName,
+              studentNumber: _user!.studentNumber,
+              ncstEmail: _user!.ncstEmail,
+              photoBase64: base64String, // Pass the new image string here
+            );
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Profile picture updated successfully!')),
+          );
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -83,10 +102,20 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
       final uid = AuthService().currentFirebaseUser?.uid;
       if (uid != null) {
         await FirebaseFirestore.instance.collection('users').doc(uid).update({
-          'photoUrl': FieldValue.delete(),
+          'photoBase64': FieldValue.delete(),
         });
 
         if (mounted) {
+          setState(() {
+            _user = UserModel(
+              uid: _user!.uid,
+              surname: _user!.surname,
+              firstName: _user!.firstName,
+              studentNumber: _user!.studentNumber,
+              ncstEmail: _user!.ncstEmail,
+              photoBase64: '', // Clear the photo string
+            );
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Photo removed.')),
           );
@@ -130,18 +159,28 @@ class _EditProfilePictureScreenState extends State<EditProfilePictureScreen> {
         child: Column(
           children: [
             const SizedBox(height: 20),
+
             // Current avatar
             CircleAvatar(
               radius: 70,
               backgroundColor: AppTheme.primaryBlue.withOpacity(0.15),
-              child: Text(
-                _user?.initials ?? 'LF',
-                style: const TextStyle(
-                  fontSize: 42,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryBlue,
-                ),
-              ),
+              // 1. Add the background image here!
+              backgroundImage:
+                  (_user?.photoBase64 != null && _user!.photoBase64!.isNotEmpty)
+                      ? MemoryImage(base64Decode(_user!.photoBase64!))
+                      : null,
+
+              // 2. Only show the text initials IF there is no image
+              child: (_user?.photoBase64 == null || _user!.photoBase64!.isEmpty)
+                  ? Text(
+                      _user?.initials ?? 'LF',
+                      style: const TextStyle(
+                        fontSize: 42,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    )
+                  : null, // Hide the text if the image is showing
             ),
             const SizedBox(height: 40),
 

@@ -1,3 +1,5 @@
+import 'dart:convert'; //  Added for Base64 image decoding
+import 'package:cloud_firestore/cloud_firestore.dart'; //  Added for Firestore
 import 'package:flutter/material.dart';
 import 'package:lost_and_found/models/user_model.dart';
 import 'package:lost_and_found/utils/app_theme.dart';
@@ -20,82 +22,10 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
 
-  // Mock data - replace with Firebase query
-  final List<_ItemCard> _allItems = [
-    _ItemCard(
-      title: 'iPhone 12 Pro',
-      category: 'Electronics',
-      itemType: 'Lost',
-      description: 'Black iPhone 12 Pro found in the cafeteria.',
-      location: 'Cafeteria',
-      dateFound: '2023-10-15',
-      reportedBy: 'John Doe',
-      status: 'Lost',
-    ),
-    _ItemCard(
-      title: 'Blue Jacket',
-      category: 'Clothing',
-      itemType: 'Found',
-      description: 'Blue jacket found near the library entrance.',
-      location: 'Library Entrance',
-      dateFound: '2023-10-20',
-      reportedBy: 'Jane Smith',
-      status: 'Found',
-    ),
-    _ItemCard(
-      title: 'Mathematics Book',
-      category: 'Books',
-      itemType: 'Lost',
-      description: 'Calculus textbook lost in classroom 101.',
-      location: 'Classroom 101',
-      dateFound: '2023-10-10',
-      reportedBy: 'Bob Johnson',
-      status: 'Lost',
-    ),
-  ];
-
-  List<_ItemCard> get _filteredItems {
-    return _allItems.where((item) {
-      // Search filter
-      final searchText = _searchCtrl.text.toLowerCase();
-      if (searchText.isNotEmpty &&
-          !item.title.toLowerCase().contains(searchText) &&
-          !item.description.toLowerCase().contains(searchText) &&
-          !item.location.toLowerCase().contains(searchText) &&
-          !item.reportedBy.toLowerCase().contains(searchText)) {
-        return false;
-      }
-
-      // Category filter
-      if (_selectedCategory != 'All Category' &&
-          item.category != _selectedCategory) {
-        return false;
-      }
-
-      // Item Type filter
-      if (_selectedItemType != 'All Types' &&
-          item.itemType != _selectedItemType) {
-        return false;
-      }
-
-      // Date filter
-      if (_startDate != null || _endDate != null) {
-        final itemDate = DateTime.parse(item.dateFound);
-        if (_startDate != null && itemDate.isBefore(_startDate!)) {
-          return false;
-        }
-        if (_endDate != null && itemDate.isAfter(_endDate!)) {
-          return false;
-        }
-      }
-
-      return true;
-    }).toList();
-  }
-
   @override
   void initState() {
     super.initState();
+    // Rebuild the screen whenever the user types in the search bar
     _searchCtrl.addListener(() {
       setState(() {});
     });
@@ -350,27 +280,6 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-
-                      // Filter icon
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                              color: AppTheme.textGrey.withOpacity(0.3)),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: Icon(Icons.filter_list_rounded,
-                              color: AppTheme.textGrey.withOpacity(0.7),
-                              size: 22),
-                          onPressed: () {
-                            // TODO: open advanced filter
-                          },
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -378,31 +287,99 @@ class _SearchBrowseScreenState extends State<SearchBrowseScreen> {
             ),
           ),
 
-          // ── Results list ───────────────────────────────────────────
+          // ── Results list from FIRESTORE ────────────────────────────
           Expanded(
-            child: _filteredItems.isEmpty
-                ? const _EmptySearchState()
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      // Date header
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          'February 10, 2010 - Tuesday',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textDark,
-                          ),
-                        ),
-                      ),
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('items')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                // 1. Show loading spinner while fetching
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                      // Item cards
-                      ..._filteredItems
-                          .map((item) => _ItemResultCard(item: item)),
-                    ],
-                  ),
+                // 2. Error handling
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error loading items: ${snapshot.error}'),
+                  );
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+
+                // 3. Map Firestore data to _ItemCard format
+                List<_ItemCard> allItems = docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return _ItemCard(
+                    title: data['title'] ?? 'No Title',
+                    category: data['category'] ?? 'Uncategorized',
+                    itemType: data['type'] == 'found' ? 'Found' : 'Lost',
+                    description: data['description'] ?? '',
+                    location: data['location'] ?? 'Unknown',
+                    dateFound: data['date'] ?? 'Unknown date',
+                    reportedBy:
+                        'Student', // We only save UID, so using placeholder
+                    status: data['type'] == 'found' ? 'Found' : 'Lost',
+                    imageUrl: data['imageBase64'],
+                  );
+                }).toList();
+
+                // 4. Apply search and dropdown filters
+                List<_ItemCard> filteredItems = allItems.where((item) {
+                  // Search filter
+                  final searchText = _searchCtrl.text.toLowerCase();
+                  if (searchText.isNotEmpty &&
+                      !item.title.toLowerCase().contains(searchText) &&
+                      !item.description.toLowerCase().contains(searchText) &&
+                      !item.location.toLowerCase().contains(searchText)) {
+                    return false;
+                  }
+
+                  // Category filter
+                  if (_selectedCategory != 'All Category' &&
+                      item.category != _selectedCategory) {
+                    return false;
+                  }
+
+                  // Item Type filter
+                  if (_selectedItemType != 'All Types' &&
+                      item.itemType != _selectedItemType) {
+                    return false;
+                  }
+
+                  // Date filter (Wrap in try/catch in case user typed weird formats)
+                  if (_startDate != null || _endDate != null) {
+                    try {
+                      final itemDate =
+                          DateFormat('MM/dd/yyyy').parse(item.dateFound);
+                      if (_startDate != null && itemDate.isBefore(_startDate!))
+                        return false;
+                      if (_endDate != null && itemDate.isAfter(_endDate!))
+                        return false;
+                    } catch (e) {
+                      // If date fails to parse perfectly, we skip the date filter check
+                    }
+                  }
+
+                  return true;
+                }).toList();
+
+                // 5. Display Empty State or List
+                if (filteredItems.isEmpty) {
+                  return const _EmptySearchState();
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filteredItems.length,
+                  itemBuilder: (context, index) {
+                    return _ItemResultCard(item: filteredItems[index]);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -438,7 +415,7 @@ class _ItemResultCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Image placeholder
+                // ── UPDATED IMAGE VIEWER ──
                 Container(
                   width: 90,
                   height: 90,
@@ -446,16 +423,19 @@ class _ItemResultCard extends StatelessWidget {
                     color: AppTheme.primaryBlue.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Center(
-                    child: Text(
-                      '[Image]',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
+                  clipBehavior: Clip.hardEdge,
+                  child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                      ? Image.memory(
+                          base64Decode(item.imageUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : const Center(
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 12),
 
@@ -553,7 +533,6 @@ class _ItemResultCard extends StatelessWidget {
             ),
             child: TextButton(
               onPressed: () {
-                // TODO: Navigate to claim/detail screen
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Claim Item — coming soon!')),
                 );
@@ -626,7 +605,7 @@ class _EmptySearchState extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'No items',
+              'No items found',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -635,7 +614,7 @@ class _EmptySearchState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Search/Browse empty',
+              'Try adjusting your filters or search terms',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -661,7 +640,7 @@ class _ItemCard {
   final String location;
   final String dateFound;
   final String reportedBy;
-  final String status; // 'Found' or 'Lost'
+  final String status;
   final String? imageUrl;
 
   _ItemCard({

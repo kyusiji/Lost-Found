@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -47,7 +48,8 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 70, // Compress image slightly to save space
+        imageQuality: 30, // Compress image slightly to save space
+        maxWidth: 600,
       );
 
       if (pickedFile != null) {
@@ -78,15 +80,13 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     setState(() => _isLoading = true);
 
     try {
-      String? imageUrl;
+      String? base64ImageString;
 
       // 1. Upload Image to Storage (if selected)
       if (_selectedImage != null) {
-        imageUrl = await StorageService().uploadImage(
-            _selectedImage!, _isFoundTab ? 'found_items' : 'lost_items');
-      }
-      if (_selectedImage != null) {
-        Image.file(_selectedImage!);
+        final bytes = await _selectedImage!.readAsBytes();
+        // Convert to base64 string
+        base64ImageString = base64Encode(bytes);
       }
 
       // 2. Save Item details to Firestore
@@ -99,7 +99,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
         'location': _locationCtrl.text.trim(),
         'date': _dateCtrl.text.trim(),
         'handoverStatus': _isFoundTab ? _selectedHandoverStatus : null,
-        'imageUrl': imageUrl,
+        'imageUrl': base64ImageString,
         'reporterUid': currentUser.uid,
         'status': 'active', // default status
         'createdAt': FieldValue.serverTimestamp(),
