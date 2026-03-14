@@ -22,12 +22,12 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
   bool _isFoundTab = true; // true = Found Items, false = Lost Items
 
   File? _selectedImage;
+  DateTime? _selectedDate;
   final ImagePicker _picker = ImagePicker();
   final _formKey = GlobalKey<FormState>();
   final _itemTitleCtrl = TextEditingController();
   final _descriptionCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
-  final _dateCtrl = TextEditingController();
 
   String _selectedCategory = 'All Category';
   String _selectedItemType = 'All Types';
@@ -40,8 +40,32 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
     _itemTitleCtrl.dispose();
     _descriptionCtrl.dispose();
     _locationCtrl.dispose();
-    _dateCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppTheme.primaryBlue,
+              onPrimary: Colors.white,
+              surface: AppTheme.white,
+              onSurface: AppTheme.textDark,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
   }
 
   Future<void> _uploadImage() async {
@@ -70,6 +94,16 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fix the errors in the form'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a date'),
           backgroundColor: AppTheme.errorRed,
         ),
       );
@@ -120,7 +154,9 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
         category: _selectedCategory,
         type: _isFoundTab ? 'found' : 'lost',
         location: _locationCtrl.text.trim(),
-        date: _dateCtrl.text.trim(),
+        date: _selectedDate != null
+            ? '${_selectedDate!.month.toString().padLeft(2, '0')}/${_selectedDate!.day.toString().padLeft(2, '0')}/${_selectedDate!.year}'
+            : '',
         imageUrl: imageUrl ?? '',
         reporterUid: currentUser.uid,
         reporterName: AuthService().currentUser?.fullName ?? 'Unknown',
@@ -154,7 +190,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
         _itemTitleCtrl.clear();
         _descriptionCtrl.clear();
         _locationCtrl.clear();
-        _dateCtrl.clear();
+        _selectedDate = null;
         setState(() => _selectedImage = null);
         
         Future.delayed(const Duration(milliseconds: 500), () {
@@ -257,7 +293,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                       _itemTitleCtrl.clear();
                       _descriptionCtrl.clear();
                       _locationCtrl.clear();
-                      _dateCtrl.clear();
+                      _selectedDate = null;
                       _selectedImage = null;
                     }),
                   ),
@@ -275,7 +311,7 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                       _itemTitleCtrl.clear();
                       _descriptionCtrl.clear();
                       _locationCtrl.clear();
-                      _dateCtrl.clear();
+                      _selectedDate = null;
                       _selectedImage = null;
                     }),
                   ),
@@ -552,10 +588,59 @@ class _ReportItemScreenState extends State<ReportItemScreen> {
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: _buildField(
-                                  _isFoundTab ? 'Date found:' : 'Date lost:',
-                                  _dateCtrl,
-                                  '[mm/dd/yyyy]',
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _isFoundTab ? 'Date found:' : 'Date lost:',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.textDark,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    GestureDetector(
+                                      onTap: _pickDate,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.bgLight,
+                                          border: Border.all(
+                                            color: AppTheme.borderColor
+                                                .withOpacity(0.3),
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              _selectedDate != null
+                                                  ? '${_selectedDate!.month.toString().padLeft(2, '0')}/${_selectedDate!.day.toString().padLeft(2, '0')}/${_selectedDate!.year}'
+                                                  : 'Select date',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: _selectedDate != null
+                                                    ? AppTheme.textDark
+                                                    : AppTheme.textGrey
+                                                        .withOpacity(0.5),
+                                              ),
+                                            ),
+                                            const Icon(
+                                              Icons.calendar_today,
+                                              size: 16,
+                                              color: AppTheme.primaryBlue,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

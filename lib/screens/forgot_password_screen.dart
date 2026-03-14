@@ -93,7 +93,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  "We'll email you a verification code you can use to reset your password.",
+                  "Enter your valid email address to receive a password recovery link.",
                   style: TextStyle(
                     fontSize: 14,
                     color: AppTheme.textGrey,
@@ -148,7 +148,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 // ── Send Code button ──────────────────────────────────────
                 PrimaryButton(
-                  label: 'Send Code',
+                  label: 'Send Recovery Link',
                   isLoading: _isLoading,
                   onPressed: _sendCode,
                 ),

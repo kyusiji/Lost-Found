@@ -14,22 +14,24 @@ import 'package:lost_and_found/screens/track_my_report_screen.dart';
 import 'package:lost_and_found/screens/help_support_screen.dart';
 import 'package:lost_and_found/screens/notifications_screen.dart';
 import 'package:lost_and_found/models/user_model.dart';
+import 'package:lost_and_found/screens/admin_logs_screen.dart';
 
 class AppRoutes {
-  static const String splash              = '/';
-  static const String login               = '/login';
-  static const String register            = '/register';
-  static const String dashboard           = '/dashboard';
-  static const String forgotPassword      = '/forgot-password';
-  static const String resetPassword       = '/reset-password';
-  static const String profileManagement   = '/profile-management';
-  static const String editProfilePicture  = '/edit-profile-picture';
-  static const String changePassword      = '/change-password';
-  static const String searchBrowse        = '/search-browse';
-  static const String reportItem          = '/report-item';
-  static const String trackMyReport       = '/track-my-report';
-  static const String helpSupport         = '/help-support';
-  static const String notifications       = '/notifications';
+  static const String splash = '/';
+  static const String login = '/login';
+  static const String register = '/register';
+  static const String dashboard = '/dashboard';
+  static const String forgotPassword = '/forgot-password';
+  static const String resetPassword = '/reset-password';
+  static const String profileManagement = '/profile-management';
+  static const String editProfilePicture = '/edit-profile-picture';
+  static const String changePassword = '/change-password';
+  static const String searchBrowse = '/search-browse';
+  static const String reportItem = '/report-item';
+  static const String trackMyReport = '/track-my-report';
+  static const String helpSupport = '/help-support';
+  static const String notifications = '/notifications';
+  static const String adminLogs = '/admin-logs';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -81,6 +83,13 @@ class AppRoutes {
       case notifications:
         final user = settings.arguments as UserModel?;
         return _fade(NotificationsScreen(user: user));
+
+      case adminLogs:
+        // Explicitly cast the argument to UserModel?
+        final user = settings.arguments is UserModel
+            ? settings.arguments as UserModel
+            : null;
+        return _fade(AdminLogsScreen(user: user));
 
       default:
         return _fade(Scaffold(

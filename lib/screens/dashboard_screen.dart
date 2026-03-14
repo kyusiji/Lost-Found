@@ -5,7 +5,7 @@ import 'package:lost_and_found/services/auth_service.dart';
 import 'package:lost_and_found/utils/app_routes.dart';
 import 'package:lost_and_found/utils/app_theme.dart';
 import 'package:lost_and_found/utils/constants.dart';
-import 'package:lost_and_found/screens/notification_preview.dart';
+import 'package:lost_and_found/screens/admin_logs_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final UserModel? user;
@@ -88,6 +88,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Navigator.pushNamed(context, AppRoutes.helpSupport,
             arguments: widget.user);
         break;
+      case _SidebarItem.adminLogs:
+        Navigator.pushNamed(
+          context,
+          AppRoutes.adminLogs,
+          arguments: widget.user, // Keeps the user data consistent
+        );
+        break;
+
       default:
         // Dashboard stays on dashboard
         break;
@@ -214,7 +222,14 @@ class _DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
 // SIDEBAR DRAWER
 // ════════════════════════════════════════════════════════════════════════════
 
-enum _SidebarItem { dashboard, search, report, trackMyReport, helpSupport }
+enum _SidebarItem {
+  dashboard,
+  search,
+  report,
+  trackMyReport,
+  helpSupport,
+  adminLogs
+}
 
 class _Sidebar extends StatelessWidget {
   final UserModel? user;
@@ -284,14 +299,14 @@ class _Sidebar extends StatelessWidget {
               label: 'Report',
               isActive: activeItem == _SidebarItem.report,
               onTap: () => onItemTap(_SidebarItem.report),
-              subtitle: 'I Found Something',
+              subtitle: 'I Found Something/',
             ),
             _SidebarTile(
               icon: Icons.track_changes_rounded,
               label: 'Track My Report',
               isActive: activeItem == _SidebarItem.trackMyReport,
               onTap: () => onItemTap(_SidebarItem.trackMyReport),
-              subtitle: 'Where is my stuff?',
+              subtitle: 'History',
             ),
             _SidebarTile(
               icon: Icons.help_outline_rounded,
@@ -299,6 +314,17 @@ class _Sidebar extends StatelessWidget {
               isActive: activeItem == _SidebarItem.helpSupport,
               onTap: () => onItemTap(_SidebarItem.helpSupport),
             ),
+
+            if (user?.isAdmin ?? false) ...[
+              const Divider(color: Colors.white24, height: 20),
+              _SidebarTile(
+                icon: Icons.receipt_long_rounded,
+                label: 'Transaction Logs',
+                isActive: activeItem == _SidebarItem.adminLogs,
+                onTap: () => onItemTap(_SidebarItem.adminLogs),
+                subtitle: 'Admin: Proof of Receipt',
+              ),
+            ],
 
             const Spacer(),
             const Divider(color: Colors.white24, height: 1),
@@ -491,7 +517,7 @@ class _DashboardBody extends StatelessWidget {
 
           // ── Action cards ─────────────────────────────────────────────
           _DashboardCard(
-            label: 'I am Looking For Something',
+            label: 'Items That are Lost/Found',
             borderColor: AppTheme.errorRed,
             textColor: AppTheme.errorRed,
             icon: Icons.search_rounded,
@@ -509,7 +535,7 @@ class _DashboardBody extends StatelessWidget {
           const SizedBox(height: 14),
 
           _DashboardCard(
-            label: 'Where is my stuff?',
+            label: 'History of My Reports',
             borderColor: const Color(0xFFE67E22),
             textColor: const Color(0xFFE67E22),
             icon: Icons.track_changes_rounded,

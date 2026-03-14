@@ -5,6 +5,7 @@ class UserModel {
   final String studentNumber;
   final String ncstEmail;
   final String photoUrl; // URL to profile image on Firebase Storage
+  final String? role;
 
   const UserModel({
     required this.uid,
@@ -13,7 +14,10 @@ class UserModel {
     required this.studentNumber,
     required this.ncstEmail,
     required this.photoUrl,
+    this.role,
   });
+
+  bool get isAdmin => role == 'admin';
 
   String get fullName => '$firstName $surname';
   String get initials => '${firstName[0]}${surname[0]}'.toUpperCase();
@@ -25,6 +29,7 @@ class UserModel {
         studentNumber: m['studentNumber'] as String? ?? '',
         ncstEmail: m['ncstEmail'] as String? ?? '',
         photoUrl: m['photoUrl'] as String? ?? '',
+        role: m['role'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -34,6 +39,7 @@ class UserModel {
         'studentNumber': studentNumber,
         'ncstEmail': ncstEmail,
         'photoUrl': photoUrl,
+        'role': role,
       };
 
   UserModel copyWith({
@@ -43,6 +49,7 @@ class UserModel {
     String? studentNumber,
     String? ncstEmail,
     String? photoUrl,
+    String? role,
   }) =>
       UserModel(
         uid: uid ?? this.uid,
@@ -51,6 +58,7 @@ class UserModel {
         studentNumber: studentNumber ?? this.studentNumber,
         ncstEmail: ncstEmail ?? this.ncstEmail,
         photoUrl: photoUrl ?? this.photoUrl,
+        role: role ?? this.role,
       );
 
   @override
